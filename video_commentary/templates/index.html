@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>自动化视频解说工作台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">VideoNarrator</div>
+      <nav class="steps">
+        <button data-view="dashboard" class="active">仪表盘</button>
+        <button data-view="material">素材</button>
+        <button data-view="script">文案</button>
+        <button data-view="voice">配音</button>
+        <button data-view="export">导出</button>
+      </nav>
+      <div class="health">
+        <span class="{{ 'ok' if api_key_present else 'warn' }}">LLM</span>
+        <span class="{{ 'ok' if ffmpeg_present else 'warn' }}">FFmpeg</span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="dashboard" class="view active">
+        <div class="hero">
+          <h1>自动化视频解说工作台</h1>
+          <p>把长视频拆成可审核的制作流程：素材分析、文案生成、配音试听、最终合成。</p>
+        </div>
+        <div class="two-col">
+          <form id="createForm" class="panel">
+            <h2>创建项目</h2>
+            <label>
+              <span>项目名称</span>
+              <input name="name" placeholder="士兵突击解说">
+            </label>
+            <label>
+              <span>上传视频</span>
+              <input name="video" type="file" accept="video/*">
+            </label>
+            <label>
+              <span>字幕文件 SRT/VTT/ASS</span>
+              <input name="subtitle" type="file" accept=".srt,.vtt,.ass,.ssa">
+            </label>
+            <label>
+              <span>或本机视频路径</span>
+              <input name="source_path" placeholder="D:\Videos\movie.mp4">
+            </label>
+            <button class="primary" type="submit">创建项目</button>
+            <div id="createMessage" class="hint"></div>
+          </form>
+          <section class="panel">
+            <h2>项目</h2>
+            <div id="projectList" class="project-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="material" class="view">
+        <div class="section-head">
+          <div>
+            <h1 id="materialTitle">素材</h1>
+            <p>分析源视频，提取音频并识别字幕。</p>
+          </div>
+          <button id="analyzeBtn" class="primary">开始素材分析</button>
+        </div>
+        <div class="two-col">
+          <section class="panel">
+            <h2>项目状态</h2>
+            <dl id="projectMeta" class="meta"></dl>
+          </section>
+          <section class="panel tall">
+            <h2>字幕预览</h2>
+            <div id="transcriptList" class="scroll-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="script" class="view">
+        <div class="section-head">
+          <div>
+            <h1>文案生成与审核</h1>
+            <p>配置解说比例、模型、风格，然后生成可编辑的逐段旁白。</p>
+          </div>
+          <button id="generateScriptBtn" class="primary">生成文案</button>
+        </div>
+        <div class="two-col">
+          <section class="panel">
+            <h2>参数配置</h2>
+            <label>
+              <span>目标分钟</span>
+              <input id="targetMinutes" type="number" min="1" max="20" step="0.5" value="5">
+            </label>
+            <label>
+              <span>旁白比例 <output id="ratioLabel">45%</output></span>
+              <input id="narrationRatio" type="range" min="0.1" max="0.8" step="0.05" value="0.45">
+            </label>
+            <label>
+              <span>LLM Base URL</span>
+              <input id="llmBaseUrl" placeholder="https://api.deepseek.com/v1">
+            </label>
+            <label>
+              <span>LLM Model</span>
+              <input id="llmModel" placeholder="deepseek-chat / kimi...">
+            </label>
+            <button id="testLlmBtn" class="ghost" type="button">测试模型连接</button>
+            <div id="llmTestResult" class="test-result"></div>
+            <label>
+              <span>风格提示词</span>
+              <textarea id="stylePrompt" rows="7"></textarea>
+            </label>
+            <button id="saveScriptBtn" class="ghost" type="button">保存文案修改</button>
+          </section>
+          <section class="panel tall">
+            <h2>文案表</h2>
+            <div id="scriptEditor" class="script-editor"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="voice" class="view">
+        <div class="section-head">
+          <div>
+            <h1>配音生成与试听</h1>
+            <p>选择配音供应商和音色，生成后可逐段试听。</p>
+          </div>
+          <button id="generateVoiceBtn" class="primary">生成全部音频</button>
+        </div>
+        <div class="two-col">
+          <section class="panel">
+            <h2>配音设置</h2>
+            <label>
+              <span>TTS Provider</span>
+              <select id="ttsProvider">
+                <option value="openai">OpenAI</option>
+                <option value="minimax">Minimax</option>
+                <option value="openai-compatible">OpenAI-compatible</option>
+                <option value="minimax-official">MiniMax official</option>
+              </select>
+            </label>
+            <label>
+              <span>TTS Base URL</span>
+              <input id="ttsBaseUrl" placeholder="https://api.ofox.ai/v1">
+            </label>
+            <label>
+              <span>TTS Model</span>
+              <input id="ttsModel" placeholder="gpt-4o-mini-tts / speech-02-hd">
+            </label>
+            <label>
+              <span>音色 Voice</span>
+              <select id="ttsVoice">
+                <option value="marin">OpenAI marin</option>
+                <option value="verse">OpenAI verse</option>
+                <option value="alloy">OpenAI alloy</option>
+                <option value="Bowen_Mandarin">MiniMax Bowen_Mandarin</option>
+                <option value="male-qn-qingse">MiniMax male-qn-qingse</option>
+                <option value="female-shaonv">MiniMax female-shaonv</option>
+                <option value="male-qn-jingying">MiniMax male-qn-jingying</option>
+                <option value="female-yujie">MiniMax female-yujie</option>
+                <option value="audiobook_male_1">MiniMax audiobook_male_1</option>
+                <option value="audiobook_female_1">MiniMax audiobook_female_1</option>
+                <option value="male-qn-qingse-jingpin">MiniMax male-qn-qingse-jingpin</option>
+                <option value="female-shaonv-jingpin">MiniMax female-shaonv-jingpin</option>
+              </select>
+            </label>
+            <label>
+              <span>自定义 Voice ID</span>
+              <input id="customVoiceId" placeholder="已有或克隆后的 voice_id">
+            </label>
+            <form id="cloneVoiceForm" class="inline-form">
+              <label>
+                <span>上传音色样本</span>
+                <input id="cloneVoiceAudio" name="audio" type="file" accept="audio/*">
+              </label>
+              <label>
+                <span>新 Voice ID</span>
+                <input id="cloneVoiceId" name="voice_id" placeholder="custom_voice_01">
+              </label>
+              <button id="cloneVoiceBtn" class="ghost" type="submit">创建自定义音色</button>
+            </form>
+            <div id="cloneVoiceResult" class="test-result"></div>
+            <button id="testTtsBtn" class="ghost" type="button">测试配音连接</button>
+            <div id="ttsTestResult" class="test-result"></div>
+          </section>
+          <section class="panel tall">
+            <h2>音频列表</h2>
+            <div id="voiceList" class="scroll-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="export" class="view">
+        <div class="section-head">
+          <div>
+            <h1>导出成片</h1>
+            <p>确认配音已生成后，把原片片段、原声和旁白合成最终解说视频。</p>
+          </div>
+          <button id="renderBtn" class="primary">生成最终视频</button>
+        </div>
+        <section class="panel">
+          <h2>结果</h2>
+          <div id="exportResult" class="export-result"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>

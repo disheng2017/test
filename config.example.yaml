@@ -1,0 +1,56 @@
+target_minutes: 5
+narration_ratio: 0.45
+language: zh
+workdir: .runs
+
+models:
+  transcript: gpt-4o-mini-transcribe
+  writer: gpt-4.1-mini
+  tts: gpt-4o-mini-tts
+  tts_voice: marin
+
+style:
+  name: soldiers_forest_gump_dead_poets
+  prompt: >
+    中文励志电影解说风格。像《士兵突击》的不抛弃不放弃、
+    《阿甘正传》的朴素坚持、《死亡诗社》的自我觉醒。
+    语言要有画面感、节制、坚定，不要鸡汤堆砌，不要剧透式流水账。
+
+selection:
+  clip_min_seconds: 14
+  clip_max_seconds: 42
+  max_clips: 12
+  context_padding_seconds: 2
+  motivational_keyword_weight: 1.4
+  dialogue_density_weight: 0.8
+  even_coverage_weight: 0.35
+  keywords:
+    - 坚持
+    - 努力
+    - 放弃
+    - 希望
+    - 梦想
+    - 选择
+    - 勇敢
+    - 训练
+    - 成长
+    - 朋友
+    - 队友
+    - 人生
+    - 命运
+    - 自由
+    - seize
+    - dream
+    - hope
+    - never
+    - life
+    - captain
+
+render:
+  resolution: 1920x1080
+  fps: 30
+  video_bitrate: 6000k
+  narration_volume: 1.0
+  original_volume_under_narration: 0.28
+  original_volume_without_narration: 0.78
+  fade_seconds: 0.25
