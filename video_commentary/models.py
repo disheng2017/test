@@ -10,6 +10,7 @@ class TranscriptSegment:
     start: float
     end: float
     text: str
+    role: str = ""
 
     @property
     def duration(self) -> float:
@@ -50,6 +51,7 @@ class NarrationLine:
     text: str
     target_seconds: float
     voice_file: str | None = None
+    insert_start: float | None = None
 
 
 @dataclass
@@ -94,6 +96,7 @@ def segment_from_dict(data: dict[str, Any]) -> TranscriptSegment:
         start=float(data.get("start", 0)),
         end=float(data.get("end", 0)),
         text=str(data.get("text", "")).strip(),
+        role=str(data.get("role", "")).strip(),
     )
 
 
@@ -142,6 +145,7 @@ def script_from_dict(data: dict[str, Any]) -> Script:
                 text=str(item.get("text", "")).strip(),
                 target_seconds=float(item.get("target_seconds", 0)),
                 voice_file=item.get("voice_file"),
+                insert_start=float(item["insert_start"]) if item.get("insert_start") is not None else None,
             )
             for item in data.get("lines", [])
         ],

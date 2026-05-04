@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+import base64
 import json
 import mimetypes
 import uuid
@@ -31,7 +32,9 @@ def synthesize_voice(script: Script, out_dir: Path, cfg: dict[str, Any]) -> Scri
 
     for line in script.lines:
         target = out_dir / f"narration_{line.clip_index:02d}.mp3"
-        if provider in {"minimax-official", "minimax_official"} and api_key:
+        if provider in {"xiaomi", "mimo"} and api_key:
+            target.write_bytes(xiaomi_mimo_tts(line.text, api_key, tts_cfg, model, voice))
+        elif provider in {"minimax-official", "minimax_official"} and api_key:
             target.write_bytes(minimax_tts(line.text, api_key, tts_cfg, model, voice))
         elif client:
             audio = client.binary_post(
@@ -43,6 +46,85 @@ def synthesize_voice(script: Script, out_dir: Path, cfg: dict[str, Any]) -> Scri
             make_silence(line.target_seconds, target)
         line.voice_file = str(target)
     return script
+
+
+def xiaomi_mimo_tts(text: str, api_key: str, tts_cfg: dict[str, Any], model: str, voice: str) -> bytes:
+    base_url = str(tts_cfg.get("base_url") or "https://api.xiaomimimo.com/v1").rstrip("/")
+    audio_format = str(tts_cfg.get("format") or "mp3").lower()
+    style = str(tts_cfg.get("style") or "自然、清晰、沉稳的中文电影解说旁白。").strip()
+    messages = []
+    if style:
+        messages.append({"role": "user", "content": style})
+    messages.append({"role": "assistant", "content": text})
+    payload = {
+        "model": model or "mimo-v2.5-tts",
+        "messages": messages,
+        "modalities": ["audio"],
+        "audio": {
+            "voice": voice or "mimo_default",
+            "format": audio_format,
+        },
+    }
+    req = Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=180) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Xiaomi MiMo TTS 请求失败 {exc.code}: {detail}") from exc
+    audio = extract_audio_bytes(data)
+    if audio:
+        return audio
+    raise RuntimeError(f"Xiaomi MiMo TTS 未返回可识别的音频字段: {data}")
+
+
+def extract_audio_bytes(data: Any) -> bytes | None:
+    if isinstance(data, dict):
+        for key in ("data", "audio", "b64_json", "base64", "content"):
+            value = data.get(key)
+            if isinstance(value, str):
+                decoded = decode_audio_text(value)
+                if decoded:
+                    return decoded
+            found = extract_audio_bytes(value)
+            if found:
+                return found
+        for value in data.values():
+            found = extract_audio_bytes(value)
+            if found:
+                return found
+    if isinstance(data, list):
+        for item in data:
+            found = extract_audio_bytes(item)
+            if found:
+                return found
+    return None
+
+
+def decode_audio_text(value: str) -> bytes | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.startswith("data:audio"):
+        text = text.split(",", 1)[-1]
+    try:
+        raw = base64.b64decode(text, validate=True)
+        if raw.startswith((b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2", b"\xff\xe3", b"RIFF", b"OggS")) or len(raw) > 1000:
+            return raw
+    except Exception:
+        pass
+    try:
+        raw = bytes.fromhex(text)
+        if raw.startswith((b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2", b"\xff\xe3", b"RIFF", b"OggS")):
+            return raw
+    except Exception:
+        pass
+    return None
 
 
 def minimax_tts(text: str, api_key: str, tts_cfg: dict[str, Any], model: str, voice: str) -> bytes:

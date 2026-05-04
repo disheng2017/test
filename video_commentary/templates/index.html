@@ -43,6 +43,7 @@
               <span>字幕文件 SRT/VTT/ASS</span>
               <input name="subtitle" type="file" accept=".srt,.vtt,.ass,.ssa">
             </label>
+            <div class="hint">字幕可不上传。素材分析会优先读取外挂/内嵌字幕；没有字幕时自动从音轨识别。</div>
             <label>
               <span>或本机视频路径</span>
               <input name="source_path" placeholder="D:\Videos\movie.mp4">
@@ -62,16 +63,48 @@
           <div>
             <h1 id="materialTitle">素材</h1>
             <p>分析源视频，提取音频并识别字幕。</p>
+            <p id="transcribeStatus" class="subtle"></p>
           </div>
-          <button id="analyzeBtn" class="primary">开始素材分析</button>
+          <button id="analyzeBtn" class="primary">自动提取字幕</button>
         </div>
+        <div id="materialProgress" class="stage-progress"></div>
         <div class="two-col">
           <section class="panel">
             <h2>项目状态</h2>
             <dl id="projectMeta" class="meta"></dl>
+            <h2 class="subhead">字幕识别设置</h2>
+            <label>
+              <span>识别方式</span>
+              <select id="transcribeProvider">
+                <option value="auto">自动</option>
+                <option value="local">本地 Whisper</option>
+                <option value="openai">OpenAI 转写</option>
+              </select>
+            </label>
+            <label>
+              <span>Whisper 模型</span>
+              <select id="whisperModel">
+                <option value="tiny">tiny 最快</option>
+                <option value="base">base 快速</option>
+                <option value="small">small 快速</option>
+                <option value="medium">medium 更准</option>
+                <option value="large-v3">large-v3 高质量</option>
+              </select>
+            </label>
+            <label>
+              <span>Beam Size</span>
+              <input id="whisperBeamSize" type="number" min="1" max="10" step="1" value="5">
+            </label>
+            <label>
+              <span>识别提示词</span>
+              <textarea id="whisperInitialPrompt" rows="4"></textarea>
+            </label>
           </section>
           <section class="panel tall">
-            <h2>字幕预览</h2>
+            <div class="panel-toolbar">
+              <h2>字幕校准</h2>
+              <button id="saveTranscriptBtn" class="ghost" type="button">保存字幕校准</button>
+            </div>
             <div id="transcriptList" class="scroll-list"></div>
           </section>
         </div>
@@ -85,6 +118,7 @@
           </div>
           <button id="generateScriptBtn" class="primary">生成文案</button>
         </div>
+        <div id="scriptProgress" class="stage-progress"></div>
         <div class="two-col">
           <section class="panel">
             <h2>参数配置</h2>
@@ -93,8 +127,33 @@
               <input id="targetMinutes" type="number" min="1" max="20" step="0.5" value="5">
             </label>
             <label>
+              <span>主人公</span>
+              <input id="protagonist" placeholder="例如：许三多 / Forrest Gump">
+            </label>
+            <div class="segmented-field">
+              <span>人称视角</span>
+              <div class="choice-grid two">
+                <button type="button" class="choice-card" data-perspective="first">
+                  <strong>第一人称</strong>
+                  <small>“我看到...”，代入感强</small>
+                </button>
+                <button type="button" class="choice-card active" data-perspective="third">
+                  <strong>第三人称</strong>
+                  <small>“他/她...”，客观叙述</small>
+                </button>
+              </div>
+            </div>
+            <label>
               <span>旁白比例 <output id="ratioLabel">45%</output></span>
               <input id="narrationRatio" type="range" min="0.1" max="0.8" step="0.05" value="0.45">
+            </label>
+            <label>
+              <span>LLM 预设</span>
+              <select id="llmProvider">
+                <option value="minimax-m2-7">MiniMax 2.7</option>
+                <option value="xiaomi-mimo">小米 MiMo</option>
+                <option value="custom">自定义</option>
+              </select>
             </label>
             <label>
               <span>LLM Base URL</span>
@@ -127,6 +186,7 @@
           </div>
           <button id="generateVoiceBtn" class="primary">生成全部音频</button>
         </div>
+        <div id="voiceProgress" class="stage-progress"></div>
         <div class="two-col">
           <section class="panel">
             <h2>配音设置</h2>
@@ -137,6 +197,7 @@
                 <option value="minimax">Minimax</option>
                 <option value="openai-compatible">OpenAI-compatible</option>
                 <option value="minimax-official">MiniMax official</option>
+                <option value="xiaomi">Xiaomi MiMo</option>
               </select>
             </label>
             <label>
@@ -162,10 +223,24 @@
                 <option value="audiobook_female_1">MiniMax audiobook_female_1</option>
                 <option value="male-qn-qingse-jingpin">MiniMax male-qn-qingse-jingpin</option>
                 <option value="female-shaonv-jingpin">MiniMax female-shaonv-jingpin</option>
+                <option value="mimo_default">MiMo mimo_default</option>
+                <option value="冰糖">MiMo 冰糖</option>
+                <option value="茉莉">MiMo 茉莉</option>
+                <option value="苏打">MiMo 苏打</option>
+                <option value="白桦">MiMo 白桦</option>
+                <option value="Mia">MiMo Mia</option>
+                <option value="Chloe">MiMo Chloe</option>
+                <option value="Milo">MiMo Milo</option>
+                <option value="Dean">MiMo Dean</option>
               </select>
             </label>
+            <div id="voiceCardGrid" class="voice-card-grid"></div>
             <label>
               <span>自定义 Voice ID</span>
+              <div class="voice-preview">
+                <button id="previewVoiceBtn" class="ghost" type="button">试听当前音色</button>
+                <div id="voicePreviewResult" class="test-result"></div>
+              </div>
               <input id="customVoiceId" placeholder="已有或克隆后的 voice_id">
             </label>
             <form id="cloneVoiceForm" class="inline-form">
@@ -198,12 +273,28 @@
           </div>
           <button id="renderBtn" class="primary">生成最终视频</button>
         </div>
+        <div id="exportProgress" class="stage-progress"></div>
+        <section class="panel">
+          <div class="panel-toolbar">
+            <h2>解说插入校准</h2>
+            <button id="saveCalibrationBtn" class="ghost" type="button">保存校准</button>
+          </div>
+          <div id="calibrationList" class="calibration-list"></div>
+        </section>
         <section class="panel">
           <h2>结果</h2>
           <div id="exportResult" class="export-result"></div>
         </section>
       </section>
     </main>
+
+    <aside class="debug-dock">
+      <div class="debug-head">
+        <strong>调试日志</strong>
+        <button id="clearDebugBtn" class="ghost small" type="button">清空</button>
+      </div>
+      <div id="debugLog" class="debug-log"></div>
+    </aside>
 
     <div id="toast" class="toast"></div>
     <script src="{{ url_for('static', filename='app.js') }}"></script>

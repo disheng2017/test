@@ -79,7 +79,8 @@ def parse_srt_or_vtt(text: str) -> list[TranscriptSegment]:
         end = parse_timecode(end_raw.split()[0])
         body = clean_subtitle_text(" ".join(lines[timing_index + 1 :]))
         if end > start and body:
-            segments.append(TranscriptSegment(start=start, end=end, text=body))
+            role, body = split_role(body)
+            segments.append(TranscriptSegment(start=start, end=end, text=body, role=role))
     return segments
 
 
@@ -95,7 +96,8 @@ def parse_ass(text: str) -> list[TranscriptSegment]:
         end = parse_timecode(parts[2])
         body = clean_subtitle_text(parts[9])
         if end > start and body:
-            segments.append(TranscriptSegment(start=start, end=end, text=body))
+            role, body = split_role(body)
+            segments.append(TranscriptSegment(start=start, end=end, text=body, role=role))
     return segments
 
 
@@ -113,3 +115,15 @@ def clean_subtitle_text(value: str) -> str:
     value = re.sub(r"<[^>]+>", "", value)
     value = value.replace("\\N", " ").replace("\\n", " ")
     return re.sub(r"\s+", " ", value).strip()
+
+
+def split_role(text: str) -> tuple[str, str]:
+    cleaned = text.strip()
+    match = re.match(r"^([^:：]{1,16})[:：]\s*(.+)$", cleaned, flags=re.S)
+    if not match:
+        return "", cleaned
+    role = match.group(1).strip()
+    body = match.group(2).strip()
+    if not role or any(ch in role for ch in "，。！？、,.!? "):
+        return "", cleaned
+    return role, body

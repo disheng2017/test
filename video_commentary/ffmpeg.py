@@ -144,6 +144,7 @@ def cut_clip(input_path: str | Path, start: float, duration: float, output_path:
     output.parent.mkdir(parents=True, exist_ok=True)
     width, height = parse_resolution(str(cfg.get("resolution", "1920x1080")))
     fps = str(cfg.get("fps", 30))
+    audio_bitrate = str(cfg.get("audio_bitrate", "256k"))
     vf = (
         f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
@@ -171,7 +172,7 @@ def cut_clip(input_path: str | Path, start: float, duration: float, output_path:
             "-c:a",
             "aac",
             "-b:a",
-            "160k",
+            audio_bitrate,
             str(output),
         ]
     )

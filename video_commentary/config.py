@@ -26,9 +26,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "prompt": "中文励志电影解说风格，坚定、克制、有画面感。",
     },
     "selection": {
-        "clip_min_seconds": 14,
-        "clip_max_seconds": 42,
-        "max_clips": 12,
+        "clip_min_seconds": 35,
+        "clip_max_seconds": 75,
+        "max_clips": 3,
         "context_padding_seconds": 2,
         "motivational_keyword_weight": 1.4,
         "dialogue_density_weight": 0.8,
@@ -39,10 +39,22 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "resolution": "1920x1080",
         "fps": 30,
         "video_bitrate": "6000k",
+        "video_preset": "veryfast",
+        "audio_bitrate": "256k",
         "narration_volume": 1.0,
-        "original_volume_under_narration": 0.28,
-        "original_volume_without_narration": 0.78,
-        "fade_seconds": 0.25,
+        "burn_narration_subtitles": False,
+        "cover_original_subtitles": False,
+        "original_volume_under_narration": 0.16,
+        "original_volume_without_narration": 1.0,
+        "original_volume_during_narration": 0.0,
+        "source_mute_padding_seconds": 0.12,
+        "narration_delay_seconds": 0.45,
+        "fade_seconds": 0.65,
+        "source_fade_seconds": 0.75,
+        "duck_threshold": "0.012",
+        "duck_ratio": "20",
+        "duck_attack_ms": "60",
+        "duck_release_ms": "520",
     },
 }
 
@@ -66,6 +78,21 @@ def load_config(path: str | None = None) -> dict[str, Any]:
         cfg = deep_merge(cfg, loaded)
     minimax_api_key = os.getenv("MINIMAX_API_KEY", "")
     cfg["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
+    cfg["transcribe"] = {
+        "provider": os.getenv("TRANSCRIBE_PROVIDER", "auto"),
+        "api_key": os.getenv("TRANSCRIBE_API_KEY") or os.getenv("OPENAI_API_KEY", ""),
+        "base_url": os.getenv("TRANSCRIBE_BASE_URL", "https://api.openai.com/v1"),
+        "model": os.getenv("TRANSCRIBE_MODEL") or cfg.get("models", {}).get("transcript", "gpt-4o-mini-transcribe"),
+        "local_model": os.getenv("WHISPER_MODEL", "small"),
+        "device": os.getenv("WHISPER_DEVICE", "cpu"),
+        "compute_type": os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
+        "beam_size": int(os.getenv("WHISPER_BEAM_SIZE", "5")),
+        "best_of": int(os.getenv("WHISPER_BEST_OF", "5")),
+        "initial_prompt": os.getenv(
+            "WHISPER_INITIAL_PROMPT",
+            "这是一段中文影视剧对白，请保留人物称呼、口语语气和剧情相关词汇。",
+        ),
+    }
     cfg["llm"] = {
         "api_key": os.getenv("LLM_API_KEY") or minimax_api_key or os.getenv("OPENAI_API_KEY", ""),
         "base_url": os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
@@ -73,7 +100,11 @@ def load_config(path: str | None = None) -> dict[str, Any]:
     }
     cfg["tts_provider"] = os.getenv("TTS_PROVIDER", "openai")
     cfg["tts"] = {
-        "api_key": os.getenv("TTS_API_KEY") or minimax_api_key or os.getenv("OPENAI_API_KEY", ""),
+        "api_key": os.getenv("TTS_API_KEY")
+        or os.getenv("MIMO_API_KEY")
+        or os.getenv("XIAOMI_API_KEY")
+        or minimax_api_key
+        or os.getenv("OPENAI_API_KEY", ""),
         "base_url": os.getenv("TTS_BASE_URL", "https://api.openai.com/v1"),
         "model": os.getenv("TTS_MODEL") or cfg.get("models", {}).get("tts", "gpt-4o-mini-tts"),
         "voice": os.getenv("TTS_VOICE") or cfg.get("models", {}).get("tts_voice", "marin"),

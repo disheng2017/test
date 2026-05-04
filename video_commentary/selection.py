@@ -15,7 +15,7 @@ def build_plan(analysis: Analysis, cfg: dict, target_minutes: float | None = Non
     if not candidates:
         candidates = fallback_candidates(analysis.video.duration, target_duration, selection)
 
-    chosen = choose_clips(candidates, target_duration, int(selection.get("max_clips", 12)))
+    chosen = choose_clips(candidates, target_duration, int(selection.get("max_clips", 3)))
     planned: list[PlannedClip] = []
     cursor = 0.0
     selected_total = sum(c.duration for c in chosen) or 1
@@ -53,8 +53,8 @@ def candidates_from_transcript(
     if not segments:
         return []
 
-    min_s = float(cfg.get("clip_min_seconds", 14))
-    max_s = float(cfg.get("clip_max_seconds", 42))
+    min_s = float(cfg.get("clip_min_seconds", 35))
+    max_s = float(cfg.get("clip_max_seconds", 75))
     pad = float(cfg.get("context_padding_seconds", 2))
     keywords = [str(k).lower() for k in cfg.get("keywords", [])]
     keyword_weight = float(cfg.get("motivational_keyword_weight", 1.4))
@@ -69,7 +69,7 @@ def candidates_from_transcript(
         for seg in segments[i:]:
             if seg.end - start > max_s:
                 break
-            text_parts.append(seg.text)
+            text_parts.append(format_segment_text(seg))
             end = min(video_duration, seg.end + pad)
             if end - start >= min_s:
                 text = " ".join(text_parts)
@@ -82,8 +82,8 @@ def candidates_from_transcript(
 
 
 def fallback_candidates(video_duration: float, target_duration: float, cfg: dict) -> list[CandidateClip]:
-    max_clips = int(cfg.get("max_clips", 12))
-    clip_len = clamp(target_duration / max(1, max_clips), float(cfg.get("clip_min_seconds", 14)), float(cfg.get("clip_max_seconds", 42)))
+    max_clips = int(cfg.get("max_clips", 3))
+    clip_len = clamp(target_duration / max(1, max_clips), float(cfg.get("clip_min_seconds", 35)), float(cfg.get("clip_max_seconds", 75)))
     if video_duration <= clip_len:
         return [CandidateClip(0, video_duration, 1.0, "")]
     step = max(clip_len, (video_duration - clip_len) / max(1, max_clips * 2))
@@ -98,6 +98,12 @@ def fallback_candidates(video_duration: float, target_duration: float, cfg: dict
         start += step
         rank += 1
     return sorted(clips, key=lambda item: item.score, reverse=True)
+
+
+def format_segment_text(seg: TranscriptSegment) -> str:
+    if seg.role:
+        return f"{seg.role}: {seg.text}"
+    return seg.text
 
 
 def choose_clips(candidates: Iterable[CandidateClip], target_duration: float, max_clips: int) -> list[CandidateClip]:
